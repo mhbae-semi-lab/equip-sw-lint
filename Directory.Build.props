@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Authors>mhbae-semi-lab</Authors>
+    <Copyright>Copyright (c) 2026 mhbae-semi-lab</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/mhbae-semi-lab/equip-sw-lint</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mhbae-semi-lab/equip-sw-lint</RepositoryUrl>
+    <PackageTags>roslyn;analyzer;equipment;industrial;serialport;timer;deadlock;sarif</PackageTags>
+  </PropertyGroup>
+</Project>

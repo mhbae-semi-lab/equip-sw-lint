@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "viewer/app.css"
+        ],
+        "createdAt": "2026-11-21T22:31:01.039Z",
+        "reason": "user confirmed 2026-11-22: left bars are intentional code-view current-line marker (pre.code .hit) and diff gutter markers (added/fixed lists)"
+      }
+    ]
+  }
+}

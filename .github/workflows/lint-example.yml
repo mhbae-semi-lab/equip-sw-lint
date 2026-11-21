@@ -1,0 +1,44 @@
+# Example: gate a repository with the equip-sw-lint dotnet tool.
+# Copy this into your project and replace the install step with
+#   dotnet tool install -g equip-sw-lint
+# once the package is on nuget.org. Here it installs the package built from this repository.
+name: Lint example
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  equip-sw-lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install equip-sw-lint (local package)
+        run: |
+          dotnet pack src/EquipSwLint.Cli -c Release -o artifacts --nologo
+          dotnet tool install -g equip-sw-lint --add-source ./artifacts
+      - name: Lint (only findings not in the baseline fail the job)
+        run: >
+          equip-sw-lint samples/Equipment
+          --baseline viewer/samples/equipment.en.sarif
+          --fail-on warning --lang en
+          --sarif equip-sw-lint.sarif --html equip-sw-lint.html
+      - name: Upload report (open the SARIF in the viewer, or the HTML directly)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: equip-sw-lint-report
+          path: |
+            equip-sw-lint.sarif
+            equip-sw-lint.html
+      # Public repositories (or GitHub Advanced Security) can show results as code scanning alerts:
+      - name: Upload to code scanning
+        if: always() && github.event.repository.private == false
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: equip-sw-lint.sarif
+          category: equip-sw-lint

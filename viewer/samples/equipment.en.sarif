@@ -1,0 +1,867 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "equip-sw-lint",
+          "semanticVersion": "1.0.0",
+          "informationUri": "https://github.com/mhbae-semi-lab/equip-sw-lint",
+          "rules": [
+            {
+              "id": "ESL001",
+              "shortDescription": {
+                "text": "32-bit tick counter wraps after 24.9 days"
+              },
+              "fullDescription": {
+                "text": "Equipment PCs run for weeks. A deadline 'TickCount + timeout' or a comparison 'TickCount > deadline' flips sign at the wrap: timeouts fire at once or never, watchdogs stop, and the bug appears only after ~25 days in the field."
+              },
+              "help": {
+                "text": "Use Environment.TickCount64 (.NET Core 3.0+) or Stopwatch.GetTimestamp/Elapsed. If you must keep int ticks, only compare differences: unchecked(Environment.TickCount - start) > timeout."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL001",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Time",
+                "overlap": "",
+                "repro": "Repro_ESL001_DeadlineBreaksAtWrap"
+              }
+            },
+            {
+              "id": "ESL002",
+              "shortDescription": {
+                "text": "Interval measured with the wall clock"
+              },
+              "fullDescription": {
+                "text": "Equipment PCs sync their clock with the host/MES or NTP. A jump of minutes makes 'DateTime.Now - start' negative (timeout never fires) or huge (instant timeout alarm), and DST changes do the same with local time."
+              },
+              "help": {
+                "text": "Measure with Stopwatch.StartNew()/Elapsed or Environment.TickCount64 differences. Keep DateTime.Now for timestamps shown to people and for file retention dates."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL002",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Time",
+                "overlap": "SonarQube S6561",
+                "repro": "Repro_ESL002_ClockJumpBreaksTimeout"
+              }
+            },
+            {
+              "id": "ESL003",
+              "shortDescription": {
+                "text": "Periodic timer callback can overlap itself"
+              },
+              "fullDescription": {
+                "text": "System.Threading.Timer and System.Timers.Timer (AutoReset) run callbacks on the thread pool. When a serial query or file write takes longer than the period, a second callback starts on another thread: two threads talk to the same port, replies get mixed, and the pool fills up until the whole program stalls."
+              },
+              "help": {
+                "text": "Create the timer one-shot (period Timeout.Infinite / AutoReset = false) and re-arm it in a finally block at the end of the callback, or guard with 'if (Interlocked.Exchange(ref _busy, 1) == 1) return;' ... 'finally { _busy = 0; }'."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL003",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL003_SlowCallbackOverlaps"
+              }
+            },
+            {
+              "id": "ESL004",
+              "shortDescription": {
+                "text": "Serial/socket read with no timeout"
+              },
+              "fullDescription": {
+                "text": "SerialPort.ReadTimeout, Socket.ReceiveTimeout and NetworkStream.ReadTimeout default to infinite, and timeouts never apply to ReadAsync. A cable pull, a controller reboot or a half-open TCP link leaves the reading thread stuck with no alarm; the sequence waits forever."
+              },
+              "help": {
+                "text": "Set port.ReadTimeout / client.ReceiveTimeout (ms) and handle TimeoutException/IOException as a communication alarm. For async reads pass a token from 'new CancellationTokenSource(timeout)'."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL004",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "IO",
+                "overlap": "",
+                "repro": "Repro_ESL004_SilentDeviceHangsRead"
+              }
+            },
+            {
+              "id": "ESL005",
+              "shortDescription": {
+                "text": "Wait with no timeout"
+              },
+              "fullDescription": {
+                "text": "WaitOne(), Join(), Monitor.Wait(), SemaphoreSlim.Wait() and Process.WaitForExit() with no timeout turn one lost signal into a frozen sequence or a program that never exits on shutdown. Task.Wait/.Result are left to VSTHRD002 / CA rules."
+              },
+              "help": {
+                "text": "Use the timeout overload (WaitOne(ms), Join(ms), Wait(ms)) and raise an alarm or retry when it returns false."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL005",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL005_LostSignalBlocksForever"
+              }
+            },
+            {
+              "id": "ESL006",
+              "shortDescription": {
+                "text": "Settings/recipe file overwritten in place"
+              },
+              "fullDescription": {
+                "text": "File.WriteAllText, StreamWriter(path), FileMode.Create and XDocument.Save(path) truncate the file first and write it afterwards. Equipment is powered off at the switch and programs are killed by watchdogs, so a half-written recipe or config is a real failure: the tool will not start, or starts with defaults."
+              },
+              "help": {
+                "text": "Write to 'path + \".tmp\"' (same folder), flush (FileStream.Flush(true)), then File.Replace(tmp, path, backup) or File.Move(tmp, path, overwrite: true)."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL006",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "IO",
+                "overlap": "",
+                "repro": "Repro_ESL006_CrashMidWriteCorruptsRecipe"
+              }
+            },
+            {
+              "id": "ESL007",
+              "shortDescription": {
+                "text": "Buffer shared by callback and UI without a lock"
+              },
+              "fullDescription": {
+                "text": "Camera/grabber callbacks fill image buffers on their own thread while the UI paints from the same array or Bitmap. Without a lock the screen shows two frames mixed, and a buffer replaced mid-read throws IndexOutOfRange or 'object is in use elsewhere' and takes the vision program down."
+              },
+              "help": {
+                "text": "Take the same lock in the callback and in the UI, or build the frame in a private buffer and publish it with Interlocked.Exchange (double buffering)."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL007",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "PVS-Studio V3223, Infer# RacerD (general data races)",
+                "repro": "Repro_ESL007_TornFrameWithoutLock"
+              }
+            },
+            {
+              "id": "ESL008",
+              "shortDescription": {
+                "text": "Queue fed by a callback has no size limit"
+              },
+              "fullDescription": {
+                "text": "A frame queue that grows by 1% of the frame rate looks fine in a 10-minute test and runs out of memory after a day. ConcurrentQueue, Queue, BlockingCollection without capacity and unbounded channels never push back on the producer."
+              },
+              "help": {
+                "text": "Use new BlockingCollection<T>(capacity) with TryAdd (drop and count), Channel.CreateBounded with BoundedChannelFullMode.DropOldest, or check Count before Enqueue and record dropped frames."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL008",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Memory",
+                "overlap": "",
+                "repro": "Repro_ESL008_SlowConsumerGrowsQueue"
+              }
+            },
+            {
+              "id": "ESL009",
+              "shortDescription": {
+                "text": "Synchronous UI call while holding a lock"
+              },
+              "fullDescription": {
+                "text": "Control.Invoke, Dispatcher.Invoke and SendMessage block until the UI thread runs the call. If the UI thread is waiting for the same lock (a paint or button handler reading shared state), neither side moves: the classic window-message deadlock behind many 'Vision Down' reports."
+              },
+              "help": {
+                "text": "Inside the lock only copy what the UI needs; after the lock, call BeginInvoke/InvokeAsync (or Dispatcher.BeginInvoke) with the copy."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL009",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Threading",
+                "overlap": "Klocwork CS.BANNED.INVOKE (bans all synchronous Control.Invoke)",
+                "repro": "Repro_ESL009_InvokeUnderLockDeadlocks"
+              }
+            },
+            {
+              "id": "ESL010",
+              "shortDescription": {
+                "text": "Field initialized after receiving already started"
+              },
+              "fullDescription": {
+                "text": "Opening a port, starting a thread or a timer begins delivering callbacks immediately. When the queue or state they use is assigned a line later, a restart that happens to receive the first message early drops it or throws NullReferenceException: a race that shows up as 'sometimes stuck after restart'."
+              },
+              "help": {
+                "text": "Move the assignment above the Open/Start call (create queues, buffers and state first, start receiving last)."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL010",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL010_EarlyMessageLostOnRestart"
+              }
+            },
+            {
+              "id": "ESL011",
+              "shortDescription": {
+                "text": "Polling loop with no deadline"
+              },
+              "fullDescription": {
+                "text": "'while (!axis.IsDone) Thread.Sleep(10);' is fine until a sensor cable breaks or an interlock blocks the motion. Then the sequence never ends, no alarm is raised and the operator only sees a frozen screen."
+              },
+              "help": {
+                "text": "Track elapsed time (var sw = Stopwatch.StartNew(); while (!done && sw.ElapsedMilliseconds < timeout)) and raise a timeout alarm when the loop ends without the state."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL011",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "PVS-Studio V3120/V3032 (related, not the same)",
+                "repro": "Repro_ESL011_StuckSensorHangsSequence"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "ESL010",
+          "ruleIndex": 9,
+          "level": "note",
+          "message": {
+            "text": "Field '_frames' is set after '_camera.StartGrabbing()' already started 'OnFrameGrabbed', which uses it. If the first message, frame or tick arrives in between, 'OnFrameGrabbed' sees null or old state. Initialize everything the handler needs before starting."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 21,
+                  "startColumn": 13,
+                  "endLine": 21,
+                  "endColumn": 52,
+                  "snippet": {
+                    "text": "            _frames = new ConcurrentQueue<byte[]>(); // expect: ESL010"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 19,
+                  "endLine": 23,
+                  "snippet": {
+                    "text": "            _camera.FrameGrabbed += OnFrameGrabbed;\n            _camera.StartGrabbing();\n            _frames = new ConcurrentQueue<byte[]>(); // expect: ESL010\n            _running = true;\n            _worker = new Thread(InspectLoop) { IsBackground = true };"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "f6473178a7aee327"
+          }
+        },
+        {
+          "ruleId": "ESL005",
+          "ruleIndex": 4,
+          "level": "note",
+          "message": {
+            "text": "'Thread.Join()' without a timeout waits forever if the signal never comes (device hang, missed event, stuck thread). Pass a timeout and handle the timeout path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 31,
+                  "startColumn": 21,
+                  "endLine": 31,
+                  "endColumn": 28,
+                  "snippet": {
+                    "text": "            _worker?.Join(); // expect: ESL005"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 29,
+                  "endLine": 33,
+                  "snippet": {
+                    "text": "            _running = false;\n            _camera.StopGrabbing();\n            _worker?.Join(); // expect: ESL005\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "22ebfde89728e2df"
+          }
+        },
+        {
+          "ruleId": "ESL008",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "'_frames' grows without limit: 'OnFrameGrabbed' adds from a device/timer callback with no size check. When processing is slower than the camera or sensor for hours, memory climbs until the process dies. Bound it or check Count and drop."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 36,
+                  "startColumn": 13,
+                  "endLine": 36,
+                  "endColumn": 39,
+                  "snippet": {
+                    "text": "            _frames!.Enqueue(e.Pixels); // expect: ESL008"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 34,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "        private void OnFrameGrabbed(object? sender, FrameEventArgs e)\n        {\n            _frames!.Enqueue(e.Pixels); // expect: ESL008\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "5854320523cab451"
+          }
+        },
+        {
+          "ruleId": "ESL003",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "System.Threading.Timer fires every period even if the previous callback is still running; 'Poll' does blocking work with no reentrancy guard, so callbacks overlap when the device is slow. Make it one-shot and re-arm at the end, or skip while busy (Interlocked)."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 22,
+                  "startColumn": 22,
+                  "endLine": 22,
+                  "endColumn": 51,
+                  "snippet": {
+                    "text": "            _timer = new Timer(Poll, null, 0, 500); // expect: ESL003"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 20,
+                  "endLine": 24,
+                  "snippet": {
+                    "text": "            _port.ReadTimeout = 300;\n            _lastPoll = DateTime.Now;\n            _timer = new Timer(Poll, null, 0, 500); // expect: ESL003\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "85dcf1164403c7bc"
+          }
+        },
+        {
+          "ruleId": "ESL002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "Interval or timeout measured with DateTime.Now: the wall clock jumps when the PC time is synced or changed, so this elapsed time can go negative or huge. Use Stopwatch or Environment.TickCount64."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 27,
+                  "startColumn": 28,
+                  "endLine": 27,
+                  "endColumn": 52,
+                  "snippet": {
+                    "text": "            var interval = DateTime.Now - _lastPoll; // expect: ESL002"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 25,
+                  "endLine": 29,
+                  "snippet": {
+                    "text": "        private void Poll(object? state)\n        {\n            var interval = DateTime.Now - _lastPoll; // expect: ESL002\n            _lastPoll = DateTime.Now;\n            _port.WriteLine(\"HB?\");"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "eb127aa1466a1bc2"
+          }
+        },
+        {
+          "ruleId": "ESL001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "'Environment.TickCount' wraps negative after 24.9 days of PC uptime (and repeats every 49.7 days); this comparison, widening or division gives wrong results after the wrap. Use Environment.TickCount64 or Stopwatch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 33,
+                  "startColumn": 17,
+                  "endLine": 33,
+                  "endColumn": 38,
+                  "snippet": {
+                    "text": "            if (Environment.TickCount > _deadline) // expect: ESL001"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 31,
+                  "endLine": 35,
+                  "snippet": {
+                    "text": "            if (reply == \"HB OK\")\n                _deadline = Environment.TickCount + 3000;\n            if (Environment.TickCount > _deadline) // expect: ESL001\n                Alarm?.Invoke(\"heartbeat lost, poll interval \" + interval.TotalMilliseconds + \" ms, uptime \"\n                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "500855156011a981"
+          }
+        },
+        {
+          "ruleId": "ESL001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "'Environment.TickCount' wraps negative after 24.9 days of PC uptime (and repeats every 49.7 days); this comparison, widening or division gives wrong results after the wrap. Use Environment.TickCount64 or Stopwatch."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 35,
+                  "startColumn": 33,
+                  "endLine": 35,
+                  "endColumn": 54,
+                  "snippet": {
+                    "text": "                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 33,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "            if (Environment.TickCount > _deadline) // expect: ESL001\n                Alarm?.Invoke(\"heartbeat lost, poll interval \" + interval.TotalMilliseconds + \" ms, uptime \"\n                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "031f080eee962782"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'StreamReader.ReadLine' blocks forever when the device stops answering: no ReceiveTimeout/ReadTimeout is set (default infinite). Set a read timeout or pass a CancellationToken with a deadline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 41,
+                  "endLine": 23,
+                  "endColumn": 60,
+                  "snippet": {
+                    "text": "        public string? ReadMessage() => _reader!.ReadLine(); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 21,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "        }\n\n        public string? ReadMessage() => _reader!.ReadLine(); // expect: ESL004\n\n        public async Task<int> ReadBlockAsync(byte[] buffer)"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "0f962ce2f4e5edc7"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'Stream.ReadAsync' blocks forever when the device stops answering: read timeouts do not apply to async reads and no CancellationToken is passed. Set a read timeout or pass a CancellationToken with a deadline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 28,
+                  "startColumn": 26,
+                  "endLine": 28,
+                  "endColumn": 68,
+                  "snippet": {
+                    "text": "            return await stream.ReadAsync(buffer, 0, buffer.Length); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 26,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "        {\n            var stream = _client!.GetStream();\n            return await stream.ReadAsync(buffer, 0, buffer.Length); // expect: ESL004\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "111dfcffc11215da"
+          }
+        },
+        {
+          "ruleId": "ESL005",
+          "ruleIndex": 4,
+          "level": "note",
+          "message": {
+            "text": "'WaitHandle.WaitOne()' without a timeout waits forever if the signal never comes (device hang, missed event, stuck thread). Pass a timeout and handle the timeout path."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 35,
+                  "startColumn": 13,
+                  "endLine": 35,
+                  "endColumn": 27,
+                  "snippet": {
+                    "text": "            _ack.WaitOne(); // expect: ESL005"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 33,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "            var bytes = Encoding.ASCII.GetBytes(message + \"\\n\");\n            _client!.GetStream().Write(bytes, 0, bytes.Length);\n            _ack.WaitOne(); // expect: ESL005\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "573ac212ccee5dc8"
+          }
+        },
+        {
+          "ruleId": "ESL007",
+          "ruleIndex": 6,
+          "level": "note",
+          "message": {
+            "text": "Buffer field '_image' is written on a background/callback thread ('OnFrameGrabbed') and used by UI code ('OnPaint') with no lock: the UI can read a half-written frame or a resized array. Lock both sides or hand over a finished copy."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/LiveViewForm.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 43,
+                  "endLine": 24,
+                  "endColumn": 49,
+                  "snippet": {
+                    "text": "            Buffer.BlockCopy(e.Pixels, 0, _image, 0, e.Pixels.Length); // expect: ESL007"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 22,
+                  "endLine": 26,
+                  "snippet": {
+                    "text": "        private void OnFrameGrabbed(object? sender, FrameEventArgs e)\n        {\n            Buffer.BlockCopy(e.Pixels, 0, _image, 0, e.Pixels.Length); // expect: ESL007\n            lock (_sync)\n            {"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "9869d19337d4cc65"
+          }
+        },
+        {
+          "ruleId": "ESL009",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "Synchronous 'Control.Invoke' inside lock(_sync): it waits for the UI thread while holding the lock. If any UI handler takes the same lock or waits for this thread, both stop and the window freezes. Copy data under the lock and call BeginInvoke after releasing it."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/LiveViewForm.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 28,
+                  "startColumn": 17,
+                  "endLine": 28,
+                  "endColumn": 44,
+                  "snippet": {
+                    "text": "                Invoke((Action)UpdateTitle); // expect: ESL009"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 26,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "            {\n                _frameCount++;\n                Invoke((Action)UpdateTitle); // expect: ESL009\n            }\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "81ce1f81c5b1c805"
+          }
+        },
+        {
+          "ruleId": "ESL006",
+          "ruleIndex": 5,
+          "level": "note",
+          "message": {
+            "text": "'File.WriteAllText' overwrites 'path' in place: a crash, power loss or kill during the write leaves a truncated file that fails to load at the next start. Write to a temp file in the same folder, then File.Replace/File.Move over the original."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/RecipeStore.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 13,
+                  "endLine": 23,
+                  "endColumn": 55,
+                  "snippet": {
+                    "text": "            File.WriteAllText(path, recipe.ToString()); // expect: ESL006"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 21,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "        {\n            var path = Path.Combine(_folder, recipe.Name + \".rcp\");\n            File.WriteAllText(path, recipe.ToString()); // expect: ESL006\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "823b8729b5ce6a63"
+          }
+        },
+        {
+          "ruleId": "ESL006",
+          "ruleIndex": 5,
+          "level": "note",
+          "message": {
+            "text": "'XDocument.Save' overwrites 'configPath' in place: a crash, power loss or kill during the write leaves a truncated file that fails to load at the next start. Write to a temp file in the same folder, then File.Replace/File.Move over the original."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/RecipeStore.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 69,
+                  "endLine": 26,
+                  "endColumn": 89,
+                  "snippet": {
+                    "text": "        public void SaveConfig(XDocument doc, string configPath) => doc.Save(configPath); // expect: ESL006"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 24,
+                  "endLine": 28,
+                  "snippet": {
+                    "text": "        }\n\n        public void SaveConfig(XDocument doc, string configPath) => doc.Save(configPath); // expect: ESL006\n    }\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "25f9450aeb0bff5c"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'SerialPort.ReadLine' blocks forever when the device stops answering: SerialPort.ReadTimeout is never set (default InfiniteTimeout). Set a read timeout or pass a CancellationToken with a deadline."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/StageController.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 16,
+                  "startColumn": 20,
+                  "endLine": 16,
+                  "endColumn": 36,
+                  "snippet": {
+                    "text": "            return _port.ReadLine(); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 14,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": "        {\n            _port.WriteLine(command);\n            return _port.ReadLine(); // expect: ESL004\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "d63347205920e44e"
+          }
+        },
+        {
+          "ruleId": "ESL011",
+          "ruleIndex": 10,
+          "level": "note",
+          "message": {
+            "text": "Polling loop waits for '!IsInPosition()' with Sleep and no deadline: if the device or IO never reaches that state, this thread waits forever and the sequence hangs without an alarm. Add a timeout and raise an alarm when it expires."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/StageController.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 13,
+                  "endLine": 24,
+                  "endColumn": 18,
+                  "snippet": {
+                    "text": "            while (!IsInPosition()) // expect: ESL011"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 22,
+                  "endLine": 26,
+                  "snippet": {
+                    "text": "        {\n            _port.WriteLine(\"MOV \" + mm.ToString(\"F3\"));\n            while (!IsInPosition()) // expect: ESL011\n                Thread.Sleep(10);\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "0299a7fd62718651"
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "properties": {
+            "files": 13,
+            "lines": 528,
+            "parseMs": 380,
+            "analyzeMs": 523,
+            "unresolvedTypes": 0,
+            "absentFromBaseline": 0,
+            "lang": "en"
+          }
+        }
+      ]
+    }
+  ]
+}

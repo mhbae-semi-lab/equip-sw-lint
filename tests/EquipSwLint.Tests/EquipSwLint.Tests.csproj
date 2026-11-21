@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>EquipSwLint.Tests</RootNamespace>
+    <!-- repro tests deliberately contain the bad patterns -->
+    <NoWarn>$(NoWarn);CS0618;SYSLIB0006</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.4" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
+    <ProjectReference Include="../../src/EquipSwLint.Cli/EquipSwLint.Cli.csproj" />
+    <ProjectReference Include="../../src/EquipSwLint.Analyzers/EquipSwLint.Analyzers.csproj" />
+  </ItemGroup>
+</Project>

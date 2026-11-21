@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    # tests resolve WinForms/WPF types from the Windows Desktop runtime
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build (warnings are errors)
+        run: dotnet build EquipSwLint.sln -c Release --nologo
+      - name: Analyzer, sample, repro and CLI tests
+        run: dotnet test EquipSwLint.sln -c Release --nologo --no-build --logger "console;verbosity=normal"
+      - name: Viewer tests
+        run: node --test viewer/test/viewer.test.js
+      - name: Pack
+        run: |
+          dotnet pack src/EquipSwLint.Analyzers -c Release -o artifacts --nologo
+          dotnet pack src/EquipSwLint.Cli -c Release -o artifacts --nologo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/*.nupkg

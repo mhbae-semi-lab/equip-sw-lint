@@ -1,0 +1,33 @@
+name: Release
+
+# Push a v* tag: test, pack both packages and create a draft GitHub release with the .nupkg files.
+# Publishing to nuget.org is a separate, manual step.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Test
+        run: dotnet test EquipSwLint.sln -c Release --nologo
+      - name: Pack
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          dotnet pack src/EquipSwLint.Analyzers -c Release -o artifacts --nologo -p:Version=$ver
+          dotnet pack src/EquipSwLint.Cli -c Release -o artifacts --nologo -p:Version=$ver
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} artifacts/*.nupkg --draft --title "equip-sw-lint ${{ github.ref_name }}" --notes-file CHANGELOG.md

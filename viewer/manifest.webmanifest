@@ -1,0 +1,16 @@
+{
+  "name": "장비 SW 위험 코드 린트 · Equipment SW Lint",
+  "short_name": "SW Lint",
+  "description": "equip-sw-lint SARIF 보고서 뷰어: 근거 줄 · 장비에서 멈추는 방식 · 기준선 비교 · Shadow 규칙 전환. SARIF report viewer for equipment software analyzers.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#c00000",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

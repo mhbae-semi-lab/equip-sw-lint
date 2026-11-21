@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>장비 SW 위험 코드 린트 · 보고서</title>
+  <meta name="description" content="equip-sw-lint 분석기의 SARIF 보고서를 브라우저에서 열어 근거 줄 · 장비에서 멈추는 방식 · 고치는 법을 보고, 기준선 비교와 Shadow 규칙 판정 · 전환을 합니다. 서버 없이 동작합니다.">
+  <meta name="theme-color" content="#c00000">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="vendor/pretendard/pretendard.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <a class="skip" href="#main" data-i18n="skip">본문으로 건너뛰기</a>
+  <header class="bar">
+    <div class="bar-in">
+      <strong class="app-name"><img src="icons/icon.svg" alt="" width="26" height="26"> <span data-i18n="appName">장비 SW 위험 코드 린트 · 보고서</span></strong>
+      <label class="sr-only" for="lang" data-i18n="language">언어</label>
+      <select id="lang" class="sel sm"><option value="ko">한국어</option><option value="en">English</option></select>
+      <button class="btn ghost sm icon" type="button" id="theme" data-i18n-attr="aria-label:theme;title:theme" aria-label="화면 테마">◐</button>
+      <button class="btn ghost sm" type="button" id="open-help" data-i18n="help">도움말</button>
+      <button class="btn ghost sm" type="button" id="open-settings" data-i18n="settings">설정</button>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+    <section class="intro">
+      <h1 data-i18n="heroTitle">장비에서 몇 주 뒤에 멈출 코드를, 커밋 전에</h1>
+      <p data-i18n-html="heroText"></p>
+      <ol class="steps-nav">
+        <li><span>1</span><i data-i18n="step1"></i></li>
+        <li><span>2</span><i data-i18n="step2"></i></li>
+        <li><span>3</span><i data-i18n="step3"></i></li>
+        <li><span>4</span><i data-i18n="step4"></i></li>
+      </ol>
+      <p class="first-run" id="first-run" hidden><span data-i18n-html="firstRun"></span> <button type="button" class="link" id="dismiss-first" data-i18n="dismiss">닫기</button></p>
+    </section>
+
+    <section class="panel source" id="drop" aria-label="SARIF">
+      <div class="src-row">
+        <div class="src-tabs">
+          <button type="button" id="load-sample" data-i18n="loadSample"></button>
+          <label class="file-btn"><span data-i18n="openFile"></span><input type="file" id="file" accept=".sarif,.json,application/json" class="sr-only"></label>
+          <label class="file-btn"><span data-i18n="openBaseline"></span><input type="file" id="base-file" accept=".sarif,.json,application/json" class="sr-only"></label>
+          <button type="button" id="load-sample-base" data-i18n="sampleBaseline"></button>
+          <button type="button" class="link" id="clear-base" data-i18n="clearBaseline" hidden></button>
+          <button type="button" class="link" id="download-sample" data-i18n="downloadSample"></button>
+        </div>
+        <p class="drop-hint" data-i18n="dropHint"></p>
+      </div>
+      <div class="msg err" id="load-error" role="alert" hidden></div>
+      <div id="status" aria-live="polite"></div>
+      <details class="format">
+        <summary data-i18n="howTo">SARIF 만드는 법</summary>
+        <p data-i18n="howToCli"></p>
+        <pre class="cmd">dotnet tool install -g equip-sw-lint --add-source ./artifacts
+equip-sw-lint ./src --sarif report.sarif --html report.html</pre>
+        <p data-i18n="howToBuild"></p>
+        <pre class="cmd">dotnet add package EquipSwLint.Analyzers
+dotnet build -p:ErrorLog=report.sarif%2Cversion=2.1</pre>
+      </details>
+    </section>
+
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" id="t-findings" aria-controls="p-findings" data-tab="findings" data-i18n="tabFindings"></button>
+      <button role="tab" id="t-compare" aria-controls="p-compare" data-tab="compare" data-i18n="tabCompare"></button>
+      <button role="tab" id="t-shadow" aria-controls="p-shadow" data-tab="shadow" data-i18n="tabShadow"></button>
+      <button role="tab" id="t-history" aria-controls="p-history" data-tab="history" data-i18n="tabHistory"></button>
+      <button role="tab" id="t-rules" aria-controls="p-rules" data-tab="rules" data-i18n="tabRules"></button>
+    </div>
+
+    <section class="panel" role="tabpanel" id="p-findings" aria-labelledby="t-findings">
+      <div class="filters">
+        <label class="sr-only" for="f-q" data-i18n="search"></label>
+        <input type="search" id="f-q" data-i18n-attr="placeholder:search">
+        <select id="f-rule" aria-label="rule"></select>
+        <select id="f-level" aria-label="level"></select>
+        <select id="f-state" aria-label="state"></select>
+        <span class="hint" id="f-count"></span>
+      </div>
+      <div class="chips" id="rule-chips"></div>
+      <div class="work">
+        <ul class="results" id="results" aria-label="results"></ul>
+        <article class="detail" id="detail" tabindex="-1"></article>
+      </div>
+    </section>
+
+    <section class="panel" role="tabpanel" id="p-compare" aria-labelledby="t-compare" hidden></section>
+    <section class="panel" role="tabpanel" id="p-shadow" aria-labelledby="t-shadow" hidden></section>
+    <section class="panel" role="tabpanel" id="p-history" aria-labelledby="t-history" hidden></section>
+    <section class="panel" role="tabpanel" id="p-rules" aria-labelledby="t-rules" hidden></section>
+
+    <footer class="foot">
+      <p data-i18n="privacy"></p>
+      <p class="hint" id="storage-note"></p>
+      <p class="hint">equip-sw-lint <span id="ver"></span> · MIT · <a href="https://github.com/mhbae-semi-lab/equip-sw-lint">GitHub</a></p>
+    </footer>
+  </main>
+
+  <dialog id="help" aria-labelledby="help-h">
+    <form method="dialog" class="dlg">
+      <h2 id="help-h" data-i18n="helpTitle"></h2>
+      <div class="help-body" data-i18n-html="helpBody"></div>
+      <div class="row end"><button class="btn" data-i18n="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settings" aria-labelledby="set-h">
+    <form method="dialog" class="dlg">
+      <h2 id="set-h" data-i18n="settings"></h2>
+      <h3 data-i18n="setCriteria"></h3>
+      <div class="field-row">
+        <label class="field"><span data-i18n="setMin"></span><input type="number" id="c-min" min="1" max="1000" step="1"></label>
+        <label class="field"><span data-i18n="setMaxFp"></span><input type="number" id="c-fp" min="0" max="100" step="1"></label>
+      </div>
+      <h3 data-i18n="setBackup"></h3>
+      <p class="hint" data-i18n="setBackupHint"></p>
+      <div class="row">
+        <button type="button" class="btn ghost sm" id="export-backup" data-i18n="exportBackup"></button>
+        <label class="btn ghost sm file-label"><span data-i18n="importBackup"></span><input type="file" id="import-backup" accept=".json,application/json" class="sr-only"></label>
+        <button type="button" class="btn ghost sm danger" id="clear-all" data-i18n="clearAll"></button>
+      </div>
+      <h3 data-i18n="errLog"></h3>
+      <div id="err-log" class="err-log"></div>
+      <div class="row end"><button class="btn" data-i18n="close">닫기</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

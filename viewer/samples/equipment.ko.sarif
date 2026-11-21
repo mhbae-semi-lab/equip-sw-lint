@@ -1,0 +1,867 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "equip-sw-lint",
+          "semanticVersion": "1.0.0",
+          "informationUri": "https://github.com/mhbae-semi-lab/equip-sw-lint",
+          "rules": [
+            {
+              "id": "ESL001",
+              "shortDescription": {
+                "text": "32bit 틱 카운터는 24.9일 뒤 넘어간다"
+              },
+              "fullDescription": {
+                "text": "장비 PC 는 몇 주씩 켜져 있다. 'TickCount + timeout' 으로 만든 기한이나 'TickCount > deadline' 비교는 넘어가는 순간 부호가 뒤집혀 타임아웃이 바로 나거나 영영 나지 않고, 감시 타이머가 멈춘다. 현장에서 약 25일이 지나야 드러난다."
+              },
+              "help": {
+                "text": "Environment.TickCount64 (.NET Core 3.0 이상) 나 Stopwatch 를 쓴다. int 틱을 꼭 써야 하면 차이만 비교한다: unchecked(Environment.TickCount - start) > timeout."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL001",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Time",
+                "overlap": "",
+                "repro": "Repro_ESL001_DeadlineBreaksAtWrap"
+              }
+            },
+            {
+              "id": "ESL002",
+              "shortDescription": {
+                "text": "벽시계(DateTime.Now)로 잰 간격"
+              },
+              "fullDescription": {
+                "text": "장비 PC 는 호스트 · MES · NTP 로 시각을 맞춘다. 몇 분이 건너뛰면 'DateTime.Now - start' 가 음수(타임아웃이 안 남)나 큰 값(바로 타임아웃 알람)이 된다. 서머타임 전환도 같다."
+              },
+              "help": {
+                "text": "Stopwatch.StartNew()/Elapsed 나 Environment.TickCount64 차이로 잰다. DateTime.Now 는 사람에게 보이는 시각과 파일 보관 기한에만 쓴다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL002",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Time",
+                "overlap": "SonarQube S6561",
+                "repro": "Repro_ESL002_ClockJumpBreaksTimeout"
+              }
+            },
+            {
+              "id": "ESL003",
+              "shortDescription": {
+                "text": "주기 타이머 콜백이 겹쳐 실행된다"
+              },
+              "fullDescription": {
+                "text": "System.Threading.Timer 와 System.Timers.Timer(AutoReset) 는 스레드 풀에서 콜백을 실행한다. 시리얼 조회나 파일 쓰기가 주기보다 오래 걸리면 두 번째 콜백이 다른 스레드에서 시작된다. 두 스레드가 같은 포트에 말을 걸어 응답이 섞이고, 풀이 차면 프로그램 전체가 멈춘다."
+              },
+              "help": {
+                "text": "타이머를 한 번만 실행하게 만들고(period Timeout.Infinite 또는 AutoReset = false) 콜백 끝 finally 에서 다시 건다. 또는 'if (Interlocked.Exchange(ref _busy, 1) == 1) return;' ... 'finally { _busy = 0; }' 로 막는다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL003",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL003_SlowCallbackOverlaps"
+              }
+            },
+            {
+              "id": "ESL004",
+              "shortDescription": {
+                "text": "타임아웃 없는 시리얼 · 소켓 읽기"
+              },
+              "fullDescription": {
+                "text": "SerialPort.ReadTimeout, Socket.ReceiveTimeout, NetworkStream.ReadTimeout 기본값은 무한이고, ReadAsync 에는 타임아웃이 아예 적용되지 않는다. 케이블이 빠지거나 컨트롤러가 재부팅하거나 TCP 연결이 반쯤 끊기면 읽는 스레드가 알람 없이 멈추고 시퀀스는 계속 기다린다."
+              },
+              "help": {
+                "text": "port.ReadTimeout / client.ReceiveTimeout(ms)을 정하고 TimeoutException · IOException 을 통신 알람으로 처리한다. 비동기 읽기는 'new CancellationTokenSource(timeout)' 의 토큰을 넘긴다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL004",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "IO",
+                "overlap": "",
+                "repro": "Repro_ESL004_SilentDeviceHangsRead"
+              }
+            },
+            {
+              "id": "ESL005",
+              "shortDescription": {
+                "text": "타임아웃 없는 대기"
+              },
+              "fullDescription": {
+                "text": "타임아웃 없는 WaitOne(), Join(), Monitor.Wait(), SemaphoreSlim.Wait(), Process.WaitForExit() 는 신호 하나를 놓치면 시퀀스가 멈추거나 종료할 때 프로그램이 끝나지 않는다. Task.Wait/.Result 는 VSTHRD002 · CA 규칙이 맡는다."
+              },
+              "help": {
+                "text": "타임아웃이 있는 오버로드(WaitOne(ms), Join(ms), Wait(ms))를 쓰고 false 가 오면 알람이나 재시도를 한다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL005",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL005_LostSignalBlocksForever"
+              }
+            },
+            {
+              "id": "ESL006",
+              "shortDescription": {
+                "text": "설정 · 레시피 파일을 제자리에 덮어쓴다"
+              },
+              "fullDescription": {
+                "text": "File.WriteAllText, StreamWriter(path), FileMode.Create, XDocument.Save(path) 는 파일을 먼저 비우고 나중에 쓴다. 장비는 스위치로 전원을 끄고 감시 프로그램이 프로세스를 죽이기도 해서, 반만 쓴 레시피 · 설정은 실제로 생긴다. 프로그램이 시작하지 않거나 기본값으로 시작한다."
+              },
+              "help": {
+                "text": "같은 폴더의 'path + \".tmp\"' 에 쓰고 flush(FileStream.Flush(true)) 한 뒤 File.Replace(tmp, path, backup) 나 File.Move(tmp, path, overwrite: true) 로 바꾼다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL006",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "IO",
+                "overlap": "",
+                "repro": "Repro_ESL006_CrashMidWriteCorruptsRecipe"
+              }
+            },
+            {
+              "id": "ESL007",
+              "shortDescription": {
+                "text": "콜백과 UI 가 락 없이 공유하는 버퍼"
+              },
+              "fullDescription": {
+                "text": "카메라 · 그래버 콜백은 자기 스레드에서 영상 버퍼를 채우고, UI 는 같은 배열이나 Bitmap 으로 화면을 그린다. 락이 없으면 화면에 두 프레임이 섞이고, 읽는 도중 버퍼가 바뀌면 IndexOutOfRange 나 'object is in use elsewhere' 로 비전 프로그램이 죽는다."
+              },
+              "help": {
+                "text": "콜백과 UI 에서 같은 락을 잡거나, 개인 버퍼에 프레임을 다 만든 뒤 Interlocked.Exchange 로 넘긴다(더블 버퍼)."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL007",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "PVS-Studio V3223, Infer# RacerD (general data races)",
+                "repro": "Repro_ESL007_TornFrameWithoutLock"
+              }
+            },
+            {
+              "id": "ESL008",
+              "shortDescription": {
+                "text": "콜백이 채우는 큐에 크기 제한이 없다"
+              },
+              "fullDescription": {
+                "text": "프레임 속도의 1% 씩 늘어나는 큐는 10분 시험에서는 멀쩡하고 하루 뒤 메모리가 넘친다. ConcurrentQueue, Queue, 용량 없는 BlockingCollection, 제한 없는 Channel 은 생산자를 멈추지 않는다."
+              },
+              "help": {
+                "text": "new BlockingCollection<T>(capacity) 와 TryAdd(버리고 개수 기록), BoundedChannelFullMode.DropOldest 를 쓴 Channel.CreateBounded, 또는 Enqueue 전에 Count 를 보고 버린 프레임을 기록한다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL008",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Memory",
+                "overlap": "",
+                "repro": "Repro_ESL008_SlowConsumerGrowsQueue"
+              }
+            },
+            {
+              "id": "ESL009",
+              "shortDescription": {
+                "text": "락을 잡은 채 동기 UI 호출"
+              },
+              "fullDescription": {
+                "text": "Control.Invoke, Dispatcher.Invoke, SendMessage 는 UI 스레드가 실행할 때까지 막힌다. UI 스레드가 같은 락을 기다리면(공유 상태를 읽는 그리기 · 버튼 처리기) 어느 쪽도 못 움직인다. 많은 'Vision Down' 의 원인인 창 메시지 교착이다."
+              },
+              "help": {
+                "text": "락 안에서는 UI 에 필요한 값만 복사하고, 락 밖에서 그 복사본으로 BeginInvoke/InvokeAsync(또는 Dispatcher.BeginInvoke)를 부른다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL009",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "stage": "enforce",
+                "category": "Threading",
+                "overlap": "Klocwork CS.BANNED.INVOKE (bans all synchronous Control.Invoke)",
+                "repro": "Repro_ESL009_InvokeUnderLockDeadlocks"
+              }
+            },
+            {
+              "id": "ESL010",
+              "shortDescription": {
+                "text": "수신을 시작한 뒤에 필드를 초기화한다"
+              },
+              "fullDescription": {
+                "text": "포트를 열거나 스레드 · 타이머를 시작하면 바로 콜백이 오기 시작한다. 콜백이 쓰는 큐나 상태를 한 줄 뒤에 만들면, 첫 메시지가 일찍 온 재시작에서 메시지를 버리거나 NullReferenceException 이 난다. '재시작하면 가끔 멈춘다'로 보이는 레이스다."
+              },
+              "help": {
+                "text": "대입을 Open/Start 호출 위로 옮긴다(큐 · 버퍼 · 상태를 먼저 만들고 수신은 마지막에 시작)."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL010",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "",
+                "repro": "Repro_ESL010_EarlyMessageLostOnRestart"
+              }
+            },
+            {
+              "id": "ESL011",
+              "shortDescription": {
+                "text": "기한 없는 폴링 루프"
+              },
+              "fullDescription": {
+                "text": "'while (!axis.IsDone) Thread.Sleep(10);' 는 센서 케이블이 끊기거나 인터락이 동작을 막기 전까지는 괜찮다. 그때는 시퀀스가 끝나지 않고 알람도 없이 작업자는 멈춘 화면만 본다."
+              },
+              "help": {
+                "text": "경과 시간을 잰다(var sw = Stopwatch.StartNew(); while (!done && sw.ElapsedMilliseconds < timeout)). 상태가 되지 않고 루프가 끝나면 타임아웃 알람을 낸다."
+              },
+              "helpUri": "https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/#rule/ESL011",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "stage": "shadow",
+                "category": "Threading",
+                "overlap": "PVS-Studio V3120/V3032 (related, not the same)",
+                "repro": "Repro_ESL011_StuckSensorHangsSequence"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "ESL010",
+          "ruleIndex": 9,
+          "level": "note",
+          "message": {
+            "text": "'_camera.StartGrabbing()' 로 'OnFrameGrabbed' 가 이미 시작된 뒤에 그 처리기가 쓰는 필드 '_frames' 를 설정한다. 그 사이에 첫 메시지 · 프레임 · 틱이 오면 'OnFrameGrabbed' 는 null 이나 이전 상태를 본다. 처리기에 필요한 것을 모두 만든 뒤에 시작한다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 21,
+                  "startColumn": 13,
+                  "endLine": 21,
+                  "endColumn": 52,
+                  "snippet": {
+                    "text": "            _frames = new ConcurrentQueue<byte[]>(); // expect: ESL010"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 19,
+                  "endLine": 23,
+                  "snippet": {
+                    "text": "            _camera.FrameGrabbed += OnFrameGrabbed;\n            _camera.StartGrabbing();\n            _frames = new ConcurrentQueue<byte[]>(); // expect: ESL010\n            _running = true;\n            _worker = new Thread(InspectLoop) { IsBackground = true };"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "f6473178a7aee327"
+          }
+        },
+        {
+          "ruleId": "ESL005",
+          "ruleIndex": 4,
+          "level": "note",
+          "message": {
+            "text": "타임아웃 없는 'Thread.Join()' 는 신호가 끝내 오지 않으면(장비 멈춤, 놓친 이벤트, 멈춘 스레드) 영원히 기다린다. 타임아웃을 넘기고 시간 초과 경로를 처리한다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 31,
+                  "startColumn": 21,
+                  "endLine": 31,
+                  "endColumn": 28,
+                  "snippet": {
+                    "text": "            _worker?.Join(); // expect: ESL005"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 29,
+                  "endLine": 33,
+                  "snippet": {
+                    "text": "            _running = false;\n            _camera.StopGrabbing();\n            _worker?.Join(); // expect: ESL005\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "22ebfde89728e2df"
+          }
+        },
+        {
+          "ruleId": "ESL008",
+          "ruleIndex": 7,
+          "level": "warning",
+          "message": {
+            "text": "'_frames' 는 끝없이 커진다: 'OnFrameGrabbed' 가 장비 · 타이머 콜백에서 크기 확인 없이 넣는다. 처리가 카메라 · 센서보다 몇 시간 느리면 메모리가 계속 늘어 프로세스가 죽는다. 크기를 제한하거나 Count 를 보고 버린다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/CameraPipeline.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 36,
+                  "startColumn": 13,
+                  "endLine": 36,
+                  "endColumn": 39,
+                  "snippet": {
+                    "text": "            _frames!.Enqueue(e.Pixels); // expect: ESL008"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 34,
+                  "endLine": 38,
+                  "snippet": {
+                    "text": "        private void OnFrameGrabbed(object? sender, FrameEventArgs e)\n        {\n            _frames!.Enqueue(e.Pixels); // expect: ESL008\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "5854320523cab451"
+          }
+        },
+        {
+          "ruleId": "ESL003",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "System.Threading.Timer 는 앞 콜백이 끝나지 않아도 주기마다 다시 실행한다. 'Poll' 는 오래 걸리는 작업을 하면서 재진입 막기가 없어, 장비 응답이 느려지면 콜백이 겹친다. 한 번만 실행하고 끝에서 다시 거는 방식이나, 실행 중이면 건너뛰기(Interlocked)를 쓴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 22,
+                  "startColumn": 22,
+                  "endLine": 22,
+                  "endColumn": 51,
+                  "snippet": {
+                    "text": "            _timer = new Timer(Poll, null, 0, 500); // expect: ESL003"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 20,
+                  "endLine": 24,
+                  "snippet": {
+                    "text": "            _port.ReadTimeout = 300;\n            _lastPoll = DateTime.Now;\n            _timer = new Timer(Poll, null, 0, 500); // expect: ESL003\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "85dcf1164403c7bc"
+          }
+        },
+        {
+          "ruleId": "ESL002",
+          "ruleIndex": 1,
+          "level": "warning",
+          "message": {
+            "text": "DateTime.Now 로 간격이나 타임아웃을 잰다. PC 시각을 맞추거나 바꾸면 벽시계가 건너뛰어 경과 시간이 음수나 매우 큰 값이 된다. Stopwatch 나 Environment.TickCount64 를 쓴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 27,
+                  "startColumn": 28,
+                  "endLine": 27,
+                  "endColumn": 52,
+                  "snippet": {
+                    "text": "            var interval = DateTime.Now - _lastPoll; // expect: ESL002"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 25,
+                  "endLine": 29,
+                  "snippet": {
+                    "text": "        private void Poll(object? state)\n        {\n            var interval = DateTime.Now - _lastPoll; // expect: ESL002\n            _lastPoll = DateTime.Now;\n            _port.WriteLine(\"HB?\");"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "eb127aa1466a1bc2"
+          }
+        },
+        {
+          "ruleId": "ESL001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "'Environment.TickCount' 는 PC 가동 24.9일 뒤 음수로 넘어가고 49.7일마다 반복된다. 이 비교 · 형 넓힘 · 나눗셈은 넘어간 뒤 틀린 값을 낸다. Environment.TickCount64 나 Stopwatch 를 쓴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 33,
+                  "startColumn": 17,
+                  "endLine": 33,
+                  "endColumn": 38,
+                  "snippet": {
+                    "text": "            if (Environment.TickCount > _deadline) // expect: ESL001"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 31,
+                  "endLine": 35,
+                  "snippet": {
+                    "text": "            if (reply == \"HB OK\")\n                _deadline = Environment.TickCount + 3000;\n            if (Environment.TickCount > _deadline) // expect: ESL001\n                Alarm?.Invoke(\"heartbeat lost, poll interval \" + interval.TotalMilliseconds + \" ms, uptime \"\n                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "500855156011a981"
+          }
+        },
+        {
+          "ruleId": "ESL001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "'Environment.TickCount' 는 PC 가동 24.9일 뒤 음수로 넘어가고 49.7일마다 반복된다. 이 비교 · 형 넓힘 · 나눗셈은 넘어간 뒤 틀린 값을 낸다. Environment.TickCount64 나 Stopwatch 를 쓴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HeartbeatMonitor.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 35,
+                  "startColumn": 33,
+                  "endLine": 35,
+                  "endColumn": 54,
+                  "snippet": {
+                    "text": "                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 33,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "            if (Environment.TickCount > _deadline) // expect: ESL001\n                Alarm?.Invoke(\"heartbeat lost, poll interval \" + interval.TotalMilliseconds + \" ms, uptime \"\n                              + Environment.TickCount / 1000 + \" s\"); // expect: ESL001\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "031f080eee962782"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'StreamReader.ReadLine' 는 장비가 응답을 멈추면 영원히 기다린다: ReceiveTimeout · ReadTimeout 을 정하지 않았다 (기본값 무한). 읽기 타임아웃을 정하거나 기한이 있는 CancellationToken 을 넘긴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 41,
+                  "endLine": 23,
+                  "endColumn": 60,
+                  "snippet": {
+                    "text": "        public string? ReadMessage() => _reader!.ReadLine(); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 21,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "        }\n\n        public string? ReadMessage() => _reader!.ReadLine(); // expect: ESL004\n\n        public async Task<int> ReadBlockAsync(byte[] buffer)"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "0f962ce2f4e5edc7"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'Stream.ReadAsync' 는 장비가 응답을 멈추면 영원히 기다린다: 비동기 읽기에는 읽기 타임아웃이 적용되지 않는데 CancellationToken 도 넘기지 않았다. 읽기 타임아웃을 정하거나 기한이 있는 CancellationToken 을 넘긴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 28,
+                  "startColumn": 26,
+                  "endLine": 28,
+                  "endColumn": 68,
+                  "snippet": {
+                    "text": "            return await stream.ReadAsync(buffer, 0, buffer.Length); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 26,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "        {\n            var stream = _client!.GetStream();\n            return await stream.ReadAsync(buffer, 0, buffer.Length); // expect: ESL004\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "111dfcffc11215da"
+          }
+        },
+        {
+          "ruleId": "ESL005",
+          "ruleIndex": 4,
+          "level": "note",
+          "message": {
+            "text": "타임아웃 없는 'WaitHandle.WaitOne()' 는 신호가 끝내 오지 않으면(장비 멈춤, 놓친 이벤트, 멈춘 스레드) 영원히 기다린다. 타임아웃을 넘기고 시간 초과 경로를 처리한다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/HostLink.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 35,
+                  "startColumn": 13,
+                  "endLine": 35,
+                  "endColumn": 27,
+                  "snippet": {
+                    "text": "            _ack.WaitOne(); // expect: ESL005"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 33,
+                  "endLine": 37,
+                  "snippet": {
+                    "text": "            var bytes = Encoding.ASCII.GetBytes(message + \"\\n\");\n            _client!.GetStream().Write(bytes, 0, bytes.Length);\n            _ack.WaitOne(); // expect: ESL005\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "573ac212ccee5dc8"
+          }
+        },
+        {
+          "ruleId": "ESL007",
+          "ruleIndex": 6,
+          "level": "note",
+          "message": {
+            "text": "버퍼 필드 '_image' 를 백그라운드 · 콜백 스레드('OnFrameGrabbed')가 쓰고 UI 코드('OnPaint')가 락 없이 쓴다. UI 가 반만 쓴 프레임이나 크기가 바뀐 배열을 읽을 수 있다. 양쪽에 락을 걸거나 다 만든 복사본을 넘긴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/LiveViewForm.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 43,
+                  "endLine": 24,
+                  "endColumn": 49,
+                  "snippet": {
+                    "text": "            Buffer.BlockCopy(e.Pixels, 0, _image, 0, e.Pixels.Length); // expect: ESL007"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 22,
+                  "endLine": 26,
+                  "snippet": {
+                    "text": "        private void OnFrameGrabbed(object? sender, FrameEventArgs e)\n        {\n            Buffer.BlockCopy(e.Pixels, 0, _image, 0, e.Pixels.Length); // expect: ESL007\n            lock (_sync)\n            {"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "9869d19337d4cc65"
+          }
+        },
+        {
+          "ruleId": "ESL009",
+          "ruleIndex": 8,
+          "level": "warning",
+          "message": {
+            "text": "lock(_sync) 안의 동기 'Control.Invoke' 는 락을 잡은 채 UI 스레드를 기다린다. UI 처리기가 같은 락을 잡거나 이 스레드를 기다리면 둘 다 멈추고 창이 얼어붙는다. 락 안에서는 데이터만 복사하고, 락을 푼 뒤 BeginInvoke 를 부른다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/LiveViewForm.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 28,
+                  "startColumn": 17,
+                  "endLine": 28,
+                  "endColumn": 44,
+                  "snippet": {
+                    "text": "                Invoke((Action)UpdateTitle); // expect: ESL009"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 26,
+                  "endLine": 30,
+                  "snippet": {
+                    "text": "            {\n                _frameCount++;\n                Invoke((Action)UpdateTitle); // expect: ESL009\n            }\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "81ce1f81c5b1c805"
+          }
+        },
+        {
+          "ruleId": "ESL006",
+          "ruleIndex": 5,
+          "level": "note",
+          "message": {
+            "text": "'File.WriteAllText' 는 'path' 를 제자리에 덮어쓴다. 쓰는 도중 프로그램이 죽거나 전원이 나가면 잘린 파일이 남아 다음 시작에서 읽지 못한다. 같은 폴더의 임시 파일에 쓴 뒤 File.Replace / File.Move 로 바꾼다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/RecipeStore.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 23,
+                  "startColumn": 13,
+                  "endLine": 23,
+                  "endColumn": 55,
+                  "snippet": {
+                    "text": "            File.WriteAllText(path, recipe.ToString()); // expect: ESL006"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 21,
+                  "endLine": 25,
+                  "snippet": {
+                    "text": "        {\n            var path = Path.Combine(_folder, recipe.Name + \".rcp\");\n            File.WriteAllText(path, recipe.ToString()); // expect: ESL006\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "823b8729b5ce6a63"
+          }
+        },
+        {
+          "ruleId": "ESL006",
+          "ruleIndex": 5,
+          "level": "note",
+          "message": {
+            "text": "'XDocument.Save' 는 'configPath' 를 제자리에 덮어쓴다. 쓰는 도중 프로그램이 죽거나 전원이 나가면 잘린 파일이 남아 다음 시작에서 읽지 못한다. 같은 폴더의 임시 파일에 쓴 뒤 File.Replace / File.Move 로 바꾼다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/RecipeStore.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 26,
+                  "startColumn": 69,
+                  "endLine": 26,
+                  "endColumn": 89,
+                  "snippet": {
+                    "text": "        public void SaveConfig(XDocument doc, string configPath) => doc.Save(configPath); // expect: ESL006"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 24,
+                  "endLine": 28,
+                  "snippet": {
+                    "text": "        }\n\n        public void SaveConfig(XDocument doc, string configPath) => doc.Save(configPath); // expect: ESL006\n    }\n}"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "25f9450aeb0bff5c"
+          }
+        },
+        {
+          "ruleId": "ESL004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "'SerialPort.ReadLine' 는 장비가 응답을 멈추면 영원히 기다린다: SerialPort.ReadTimeout 을 정하지 않았다 (기본값 무한). 읽기 타임아웃을 정하거나 기한이 있는 CancellationToken 을 넘긴다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/StageController.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 16,
+                  "startColumn": 20,
+                  "endLine": 16,
+                  "endColumn": 36,
+                  "snippet": {
+                    "text": "            return _port.ReadLine(); // expect: ESL004"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 14,
+                  "endLine": 18,
+                  "snippet": {
+                    "text": "        {\n            _port.WriteLine(command);\n            return _port.ReadLine(); // expect: ESL004\n        }\n"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "d63347205920e44e"
+          }
+        },
+        {
+          "ruleId": "ESL011",
+          "ruleIndex": 10,
+          "level": "note",
+          "message": {
+            "text": "'!IsInPosition()' 를 Sleep 으로 기다리는 폴링 루프에 기한이 없다. 장비 · IO 가 그 상태가 되지 않으면 스레드가 영원히 기다리고 시퀀스가 알람 없이 멈춘다. 타임아웃을 두고 넘으면 알람을 낸다."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Bad/StageController.cs",
+                  "uriBaseId": "SRCROOT"
+                },
+                "region": {
+                  "startLine": 24,
+                  "startColumn": 13,
+                  "endLine": 24,
+                  "endColumn": 18,
+                  "snippet": {
+                    "text": "            while (!IsInPosition()) // expect: ESL011"
+                  }
+                },
+                "contextRegion": {
+                  "startLine": 22,
+                  "endLine": 26,
+                  "snippet": {
+                    "text": "        {\n            _port.WriteLine(\"MOV \" + mm.ToString(\"F3\"));\n            while (!IsInPosition()) // expect: ESL011\n                Thread.Sleep(10);\n        }"
+                  }
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "equipSwLint/v1": "0299a7fd62718651"
+          }
+        }
+      ],
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "properties": {
+            "files": 13,
+            "lines": 528,
+            "parseMs": 326,
+            "analyzeMs": 519,
+            "unresolvedTypes": 0,
+            "absentFromBaseline": 0,
+            "lang": "ko"
+          }
+        }
+      ]
+    }
+  ]
+}
