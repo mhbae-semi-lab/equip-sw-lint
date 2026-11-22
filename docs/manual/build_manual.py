@@ -321,7 +321,7 @@ def install():
     s = new_slide()
     header(s, "시작하기", "구성과 설치", [
         "세 가지는 같은 규칙 · 같은 .editorconfig 키를 씀. 필요한 것만 골라 써도 됨",
-        "nuget.org 게시 전에는 GitHub Releases 의 .nupkg 를 받은 폴더를 --add-source 로 지정",
+        "패키지는 nuget.org 에 있음. 오래된 NuGet 설정(api/v2 만)이면 --add-source https://api.nuget.org/v3/index.json",
         "보고서 뷰어는 웹 주소에서 바로 열거나 '앱 설치'로 설치. 계정 · 서버 없음",
     ])
     cols = [

@@ -1,5 +1,5 @@
 // Service worker: caches the app so it opens offline. Bump VERSION when files change.
-const VERSION = "equip-sw-lint-viewer-v1.0.0-2";
+const VERSION = "equip-sw-lint-viewer-v1.0.0-3";
 const FILES = [
   "./", "index.html", "app.css", "manifest.webmanifest", "rules.json", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
   "src/app.js", "src/sarif.js", "src/ruleset.js", "src/i18n.js", "src/store.js",

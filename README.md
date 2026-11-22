@@ -4,7 +4,7 @@
 빌드에 붙이는 NuGet 분석기, 빌드 없이 폴더를 분석하는 `dotnet tool` CLI, 결과(SARIF)를 근거 줄 · 장비에서 멈추는 방식 · 고치는 법과 함께 보는 브라우저 보고서 뷰어로 되어 있습니다.
 
 - 보고서 뷰어: https://mhbae-semi-lab.github.io/equip-sw-lint/viewer/ (설치 없음, 예시 보고서 버튼)
-- 패키지: `EquipSwLint.Analyzers` (분석기), `equip-sw-lint` (dotnet tool)
+- 패키지 (nuget.org): [EquipSwLint.Analyzers](https://www.nuget.org/packages/EquipSwLint.Analyzers) (분석기), [equip-sw-lint](https://www.nuget.org/packages/equip-sw-lint) (dotnet tool)
 
 [English summary](#english)
 
@@ -93,7 +93,7 @@ equip-sw-lint ./src --ref "C:\Vendor\SDK\bin" --exclude tests     # 벤더 DLL �
 equip-sw-lint rules                                               # 규칙 목록
 ```
 
-- nuget.org 게시 전에는 GitHub Releases 의 `.nupkg` 를 받은 폴더를 `--add-source <폴더>` 로 넘깁니다.
+- 오래된 NuGet 설정이 `https://www.nuget.org/api/v2/` 만 쓰면 패키지를 못 찾을 수 있습니다. 그때는 `--add-source https://api.nuget.org/v3/index.json` 을 붙입니다.
 - 분석 폴더의 `.editorconfig` · `.globalconfig` 에서 `dotnet_diagnostic.ESLxxx.severity` 를 읽습니다.
 - 소스 인코딩: UTF-8, 아니면 CP949(한국어 ANSI)로 읽습니다.
 - 종료 코드: 0 통과, 1 `--fail-on` 이상 새 결과 있음, 2 사용법 · 입력 오류.
