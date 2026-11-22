@@ -23,7 +23,7 @@ SHOTS = os.path.join(HERE, "shots")
 ASSETS = os.path.join(HERE, "assets")
 CACHE = os.path.join(HERE, ".cache")
 OUT = os.path.join(HERE, "Equip-SW-Lint-User-Manual-ko.pptx")
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 DATE = "2026.11.22"
 NAME = "장비 SW 위험 코드 린트"
 MARKS = json.load(open(os.path.join(SHOTS, "marks.json"), encoding="utf-8"))
@@ -374,7 +374,7 @@ def tools():
         ("분석", "equip-sw-lint <폴더 | 파일.cs | 프로젝트.csproj>"),
         ("보고서", "--sarif r.sarif (뷰어 · 코드 스캐닝),  --html r.html (메일 · 아티팩트)"),
         ("기준선 게이트", "--baseline 지난.sarif  --fail-on warning | error | none"),
-        ("형식 찾기 · 폴더 빼기", "--ref <벤더 DLL 폴더>,  --exclude tests"),
+        ("형식 찾기 · 폴더 빼기", "--ref <벤더 DLL 폴더>,  --exclude tests,  --repo-root . (code scanning 경로)"),
         ("언어 · 규칙 목록", "--lang ko | en,  equip-sw-lint rules"),
     ], tip="분석 폴더의 .editorconfig 심각도를 그대로 읽습니다. 소스는 UTF-8, 아니면 CP949", card_title="PowerShell", crop=(0, 0, 1000, 610), desc_size=9.5)
 
@@ -588,7 +588,7 @@ def data():
         "        with: { dotnet-version: 8.0.x }",
         "      - run: dotnet tool install -g equip-sw-lint",
         "      - run: >",
-        "          equip-sw-lint ./src",
+        "          equip-sw-lint ./src --repo-root .",
         "          --baseline .equip-sw-lint/baseline.sarif",
         "          --fail-on warning",
         "          --sarif r.sarif --html r.html",

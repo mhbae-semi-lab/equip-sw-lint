@@ -106,6 +106,36 @@ public class CliTests
     }
 
     [Fact]
+    public async Task RepoRoot_PrefixesPathsButKeepsFingerprints()
+    {
+        var dir = Directory.CreateTempSubdirectory("esl-root-").FullName;
+        try
+        {
+            var plain = Path.Combine(dir, "plain.sarif");
+            var rooted = Path.Combine(dir, "rooted.sarif");
+            await Program.RunAsync(new[] { Samples, "--sarif", plain, "--fail-on", "none" }, TextWriter.Null);
+            var outp = new StringWriter();
+            await Program.RunAsync(new[] { Samples, "--sarif", rooted, "--repo-root", RepoRoot, "--fail-on", "none", "--lang", "en" }, outp);
+            static List<(string Uri, string Fp)> Read(string p)
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(p));
+                return doc.RootElement.GetProperty("runs")[0].GetProperty("results").EnumerateArray().Select(r => (
+                    r.GetProperty("locations")[0].GetProperty("physicalLocation").GetProperty("artifactLocation").GetProperty("uri").GetString()!,
+                    r.GetProperty("partialFingerprints").GetProperty(Sarif.FingerprintKey).GetString()!)).ToList();
+            }
+            var a = Read(plain);
+            var b = Read(rooted);
+            Assert.All(b, x => Assert.StartsWith("samples/Equipment/Bad/", x.Uri));
+            Assert.Equal(a.Select(x => "samples/Equipment/" + x.Uri), b.Select(x => x.Uri));
+            Assert.Equal(a.Select(x => x.Fp), b.Select(x => x.Fp));          // baselines made either way still match
+            Assert.Contains("samples/Equipment/Bad/StageController.cs(16,20)", outp.ToString());
+            Assert.Equal(0, await Program.RunAsync(new[] { Samples, "--baseline", plain, "--repo-root", RepoRoot, "--lang", "en" }, TextWriter.Null));
+            Assert.Equal(2, await Program.Main(new[] { Samples, "--repo-root", Path.Combine(RepoRoot, "src") }));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public async Task EditorConfig_SeverityPromotesOrDisablesRules()
     {
         var dir = Directory.CreateTempSubdirectory("esl-cfg-").FullName;

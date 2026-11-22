@@ -51,7 +51,7 @@ public static class Html
             }
             foreach (var f in g)
             {
-                sb.Append($"<h3 class=\"lv-{f.Level}\">{E(f.File)}:{f.Line} <span class=\"mut\">{f.Level}{(f.BaselineState == "new" ? " · " + T("new", "새 결과") : "")}</span></h3>");
+                sb.Append($"<h3 class=\"lv-{f.Level}\">{E(r.Shown(f))}:{f.Line} <span class=\"mut\">{f.Level}{(f.BaselineState == "new" ? " · " + T("new", "새 결과") : "")}</span></h3>");
                 sb.Append($"<p>{E(f.Message)}</p><pre>");
                 var lines = f.Context.Split('\n');
                 for (var i = 0; i < lines.Length; i++)

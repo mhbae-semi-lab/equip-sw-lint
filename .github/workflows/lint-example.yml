@@ -28,7 +28,7 @@ jobs:
           dotnet tool install -g equip-sw-lint --add-source ./artifacts
       - name: Lint (only findings not in the baseline fail the job)
         run: >
-          equip-sw-lint samples/Equipment
+          equip-sw-lint samples/Equipment --repo-root .
           --baseline viewer/samples/equipment.en.sarif
           --fail-on warning --lang en
           --sarif equip-sw-lint.sarif --html equip-sw-lint.html

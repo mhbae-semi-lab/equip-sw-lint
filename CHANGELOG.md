@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1 — 2026-11-22
+
+### 추가
+- CLI `--repo-root <폴더>`: SARIF · HTML · 콘솔의 파일 경로를 그 폴더(보통 저장소 루트) 기준으로 씁니다. GitHub code scanning 알림이 소스 줄로 바로 연결됩니다. 결과 지문 · 기준선은 영향을 받지 않습니다.
+
+### 고침
+- GitHub Actions 기준선 게이트 예제: code scanning 업로드 권한(`security-events: write`)을 주고 upload-sarif 를 v4 로 올림
+
 ## 1.0.0 — 2026-11-22
 
 첫 버전. 장비 SW 위험 코드 규칙 11개, NuGet 분석기, 빌드 없는 CLI, 보고서 뷰어.

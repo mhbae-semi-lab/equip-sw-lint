@@ -6,7 +6,7 @@
       "tool": {
         "driver": {
           "name": "equip-sw-lint",
-          "semanticVersion": "1.0.0",
+          "semanticVersion": "1.0.1",
           "informationUri": "https://github.com/mhbae-semi-lab/equip-sw-lint",
           "rules": [
             {
@@ -854,8 +854,8 @@
           "properties": {
             "files": 13,
             "lines": 528,
-            "parseMs": 380,
-            "analyzeMs": 523,
+            "parseMs": 129,
+            "analyzeMs": 190,
             "unresolvedTypes": 0,
             "absentFromBaseline": 0,
             "lang": "en"

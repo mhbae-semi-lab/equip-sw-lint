@@ -47,6 +47,11 @@ public sealed class RunResult
     public List<string> AnalyzerErrors { get; } = new();
     public int AbsentFromBaseline { get; set; }
     public string Lang { get; set; } = "en";
+    /// <summary>Full path of the analyzed folder; finding paths and fingerprints are relative to it.</summary>
+    public string Root { get; set; } = "";
+    /// <summary>Prepended to paths in SARIF/HTML/console only (--repo-root), so code scanning links to source. Fingerprints ignore it.</summary>
+    public string PathPrefix { get; set; } = "";
+    public string Shown(Finding f) => PathPrefix + f.File;
 }
 
 public sealed class RunOptions
@@ -80,6 +85,7 @@ public static class Engine
             files = EnumerateSources(root, o.Exclude).ToList();
         }
 
+        result.Root = root;
         var sw = Stopwatch.StartNew();
         var parse = new CSharpParseOptions(LanguageVersion.Latest);
         var trees = files.Select(f =>

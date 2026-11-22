@@ -62,7 +62,7 @@ public static class Sarif
             w.WriteStartArray("locations");
             w.WriteStartObject();
             w.WriteStartObject("physicalLocation");
-            w.WriteStartObject("artifactLocation"); w.WriteString("uri", f.File); w.WriteString("uriBaseId", "SRCROOT"); w.WriteEndObject();
+            w.WriteStartObject("artifactLocation"); w.WriteString("uri", r.Shown(f)); w.WriteString("uriBaseId", "SRCROOT"); w.WriteEndObject();
             w.WriteStartObject("region");
             w.WriteNumber("startLine", f.Line); w.WriteNumber("startColumn", f.Column);
             w.WriteNumber("endLine", f.EndLine); w.WriteNumber("endColumn", f.EndColumn);

@@ -90,6 +90,7 @@ dotnet tool install -g equip-sw-lint
 equip-sw-lint ./src --sarif report.sarif --html report.html
 equip-sw-lint ./src --baseline last.sarif --fail-on warning      # 새 결과만 실패 (종료 코드 1)
 equip-sw-lint ./src --ref "C:\Vendor\SDK\bin" --exclude tests     # 벤더 DLL 로 형식 찾기, 폴더 빼기
+equip-sw-lint ./src --repo-root . --sarif r.sarif                  # 경로를 저장소 루트 기준으로 (code scanning 용)
 equip-sw-lint rules                                               # 규칙 목록
 ```
 

@@ -21,6 +21,8 @@ public static class Program
           --fail-on <level>   warning (default) | error | none   (Shadow rules report as note and never fail)
           --ref <folder>      extra assemblies to resolve types (vendor SDK DLLs); repeatable
           --exclude <name>    skip folders with this name (tests, vendored code); repeatable
+          --repo-root <dir>   write paths relative to this folder (e.g. the repository root, so GitHub
+                              code scanning links to source); fingerprints and baselines are unaffected
           --lang <ko|en>      message language (default: OS UI language)
 
         exit code: 0 ok, 1 new findings at or above --fail-on, 2 usage or input error
@@ -43,7 +45,7 @@ public static class Program
     public static async Task<int> RunAsync(string[] args, TextWriter output)
     {
         var lang = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ko" ? "ko" : "en";
-        string? path = null, sarif = null, html = null, baseline = null;
+        string? path = null, sarif = null, html = null, baseline = null, repoRoot = null;
         var failOn = "warning";
         var refs = new List<string>();
         var exclude = new List<string>();
@@ -59,6 +61,7 @@ public static class Program
                 case "--fail-on": failOn = Next().ToLowerInvariant(); break;
                 case "--ref": refs.Add(Next()); break;
                 case "--exclude": exclude.Add(Next()); break;
+                case "--repo-root": repoRoot = Next(); break;
                 case "--lang": lang = Next() == "ko" ? "ko" : "en"; break;
                 case "--json": json = true; break;
                 case "-h": case "--help": output.WriteLine(Usage); return 0;
@@ -80,8 +83,9 @@ public static class Program
 
         var ko = lang == "ko";
         var r = await Engine.RunAsync(new RunOptions { Path = path, RefDirs = refs, BaselineSarif = baseline, Lang = lang, Exclude = exclude });
+        if (repoRoot != null) r.PathPrefix = PathPrefix(repoRoot, r.Root);
         foreach (var f in r.Findings)
-            output.WriteLine($"{f.File}({f.Line},{f.Column}): {f.Level} {f.RuleId}: {f.Message}{(f.BaselineState == "unchanged" ? (ko ? " [기준선]" : " [baseline]") : "")}");
+            output.WriteLine($"{r.Shown(f)}({f.Line},{f.Column}): {f.Level} {f.RuleId}: {f.Message}{(f.BaselineState == "unchanged" ? (ko ? " [기준선]" : " [baseline]") : "")}");
         output.WriteLine();
         output.WriteLine(ko
             ? $"파일 {r.Files}개 · {r.Lines:N0}줄 · 분석 {r.ParseMs + r.AnalyzeMs} ms · 결과 {r.Findings.Count}개"
@@ -101,6 +105,17 @@ public static class Program
                                 : $"vs baseline: {r.Findings.Count(f => f.BaselineState == "new")} new, {r.AbsentFromBaseline} fixed");
         if (gate > 0) output.WriteLine(ko ? $"게이트 실패: --fail-on {failOn} 이상 새 결과 {gate}개" : $"Gate failed: {gate} new findings at --fail-on {failOn}");
         return r.AnalyzerErrors.Count > 0 ? 2 : gate > 0 ? 1 : 0;
+    }
+
+    /// <summary>"samples/Equipment/" for --repo-root . and an analyzed folder samples/Equipment.</summary>
+    public static string PathPrefix(string repoRoot, string analyzedRoot)
+    {
+        var full = Path.GetFullPath(repoRoot);
+        if (!Directory.Exists(full)) throw new UsageException($"--repo-root folder not found: {repoRoot}");
+        var rel = Path.GetRelativePath(full, analyzedRoot).Replace('\\', '/');
+        if (rel == "." ) return "";
+        if (rel.StartsWith("..") || Path.IsPathRooted(rel)) throw new UsageException($"--repo-root must contain the analyzed folder: {repoRoot}");
+        return rel.TrimEnd('/') + "/";
     }
 
     /// <summary>Rule metadata for the viewer (viewer/rules.json is generated from this and checked by a test).</summary>
